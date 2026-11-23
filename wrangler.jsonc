@@ -19,13 +19,13 @@
       "database_id": "a5e1c156-60e7-4666-87ba-2c28df9bfed5"
     }
   ],
-  // APP_ORIGIN is the public origin of the site. Locally it is the Vite server;
-  // set it to the deployed origin (https://saken.<subdomain>.workers.dev) before
-  // the first deploy.
+  // APP_ORIGIN is the public origin of the site. It must match the origin the
+  // browser uses, because Better Auth uses it as baseURL and for trustedOrigins.
+  // Locally, set it to http://localhost:5183 in .dev.vars.
   //
   // BETTER_AUTH_SECRET is deliberately absent here: it is a secret, so it lives
   // in .dev.vars for development and in `wrangler secret put` in Cloudflare.
   "vars": {
-    "APP_ORIGIN": "http://localhost:5183"
+    "APP_ORIGIN": "https://saken.saken-dz.workers.dev"
   }
 }
