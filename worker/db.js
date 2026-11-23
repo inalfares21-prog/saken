@@ -1,15 +1,25 @@
+import { getMigrations } from 'better-auth/db/migration';
 import { schemaStatements } from './schema.js';
 import { listings as seedListings } from '../src/data/listings.js';
 
 /**
  * Applies the schema and, on an empty database, loads the sample listings that
  * used to live in the frontend bundle. Runs once per isolate.
+ *
+ * Better Auth owns its own tables (user, session, account, verification), so
+ * its migrations run here too — but only when it reports tables or columns it
+ * still needs, which keeps the steady-state cost to a single introspection.
  */
 let ready;
 
-export function ensureDatabase(env) {
+export async function ensureDatabase(env, authOptions) {
   ready ??= (async () => {
     await env.DB.batch(schemaStatements.map((sql) => env.DB.prepare(sql)));
+
+    const migrations = await getMigrations(authOptions);
+    if (migrations.toBeCreated.length || migrations.toBeAdded.length) {
+      await migrations.runMigrations();
+    }
 
     const { count } = await env.DB.prepare('SELECT COUNT(*) AS count FROM listings').first();
     if (count > 0) return;

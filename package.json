@@ -7,13 +7,11 @@
   "scripts": {
     "dev": "vite",
     "api": "wrangler dev --port 8787",
-    "api:mock": "wrangler dev --config wrangler.dev.jsonc --port 8787",
-    "issuer:mock": "node dev/mock-issuer.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@freebuff/auth": "^0.1.0",
+    "better-auth": "^1.7.27",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.0"

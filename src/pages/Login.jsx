@@ -1,13 +1,20 @@
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { signInUrl } from '../lib/api.js';
+import { api } from '../lib/api.js';
 import { CheckIcon, KeyIcon, ShieldIcon } from '../components/Icons.jsx';
 
 export default function Login() {
-  const { user, loading } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const from = location.state?.from || '/owner/dashboard';
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
 
   if (loading) {
     return (
@@ -23,6 +30,25 @@ export default function Login() {
 
   if (user) {
     return <Navigate to={from} replace />;
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setSending(true);
+    try {
+      await api.signIn({ email: email.trim(), password });
+      await refresh();
+      navigate(from, { replace: true });
+    } catch (requestError) {
+      setError(
+        requestError.status === 401
+          ? 'That email and password do not match an account.'
+          : requestError.message,
+      );
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -56,7 +82,8 @@ export default function Login() {
 
         <p style={{ fontSize: '0.8rem' }}>
           <ShieldIcon width={14} height={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />
-          Sign in is handled by Freebuff. Saken never sees or stores your password.
+          Your password is stored as a salted hash in Saken&apos;s own database — nobody can read it
+          back.
         </p>
       </aside>
 
@@ -73,19 +100,51 @@ export default function Login() {
           </Link>
 
           <h1>Log in</h1>
-          <p>
-            Use your Freebuff account to manage your properties and follow up on enquiries. No new
-            password to remember.
-          </p>
+          <p>Sign in with the email and password you used to create your Saken account.</p>
 
-          <div className="demo-note">
-            <strong>Sign in with Freebuff</strong> works with Google, GitHub or Apple through your
-            Freebuff account. It takes a few seconds and comes back to this page.
-          </div>
+          {error && (
+            <div className="inline-alert inline-alert--error" role="alert" style={{ marginBottom: 18 }}>
+              <ShieldIcon />
+              <span>{error}</span>
+            </div>
+          )}
 
-          <a href={signInUrl(from)} className="btn btn--primary btn--block btn--lg">
-            Sign in with Freebuff
-          </a>
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="field">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn--primary btn--block btn--lg"
+              style={{ marginTop: 20 }}
+              disabled={sending}
+            >
+              {sending ? 'Signing in…' : 'Log in'}
+            </button>
+          </form>
 
           <p className="auth-foot">
             New to Saken? <Link to="/signup">Create an account</Link>

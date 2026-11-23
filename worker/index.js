@@ -1,4 +1,4 @@
-import { createFreebuffAuth, isSameOriginRequest } from '@freebuff/auth';
+import { authOptions, getAuth } from './auth.js';
 import { ensureDatabase } from './db.js';
 import { addEnquiry, countEnquiriesForOwner, listEnquiriesForOwner } from './enquiries.js';
 import {
@@ -9,34 +9,26 @@ import {
   similarListings,
   validateListing,
 } from './listings.js';
-import { badRequest, json, notFound, readJson, unauthorized } from './http.js';
+import { badRequest, isSameOriginRequest, json, notFound, readJson, unauthorized } from './http.js';
 
-let app;
-
-/**
- * One auth instance per isolate: it caches OIDC discovery and signing keys.
- * `wrap` serves /auth/freebuff/* and keeps the session cookie fresh.
- */
-function getApp(env) {
-  if (app) return app;
-
-  const auth = createFreebuffAuth({
-    clientId: env.FREEBUFF_CLIENT_ID,
-    issuer: env.FREEBUFF_ISSUER,
-    baseUrl: env.APP_ORIGIN,
-    allowInsecureLocalhost: env.APP_ORIGIN.startsWith('http://'),
-  });
-
-  app = auth.wrap(async (request, workerEnv) => {
+export default {
+  async fetch(request, env) {
+    const options = authOptions(env);
+    const auth = getAuth(env);
     const url = new URL(request.url);
-    if (!url.pathname.startsWith('/api/')) return workerEnv.ASSETS.fetch(request);
 
-    await ensureDatabase(workerEnv);
-    return handleApi(request, workerEnv, auth, url);
-  });
+    // Better Auth owns /api/auth/*: sign-up, sign-in, sign-out, session.
+    if (url.pathname.startsWith(options.basePath)) {
+      await ensureDatabase(env, options);
+      return auth.handler(request);
+    }
 
-  return app;
-}
+    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+
+    await ensureDatabase(env, options);
+    return handleApi(request, env, auth, url);
+  },
+};
 
 async function handleApi(request, env, auth, url) {
   const path = url.pathname;
@@ -58,7 +50,7 @@ async function handleApi(request, env, auth, url) {
 
   if (path === '/api/listings' && method === 'POST') {
     if (!isSameOriginRequest(request, env.APP_ORIGIN)) return json({ error: 'Cross-origin request refused' }, { status: 403 });
-    const user = await auth.getUser(request);
+    const user = await currentUser(auth, request);
     if (!user) return unauthorized();
 
     const body = await readJson(request);
@@ -78,21 +70,21 @@ async function handleApi(request, env, auth, url) {
     const body = await readJson(request);
     if (!body) return badRequest({ form: 'Send the message as JSON.' });
 
-    const result = await addEnquiry(env, body, await auth.getUser(request));
+    const result = await addEnquiry(env, body, await currentUser(auth, request));
     if (!result.ok) return badRequest(result.errors);
 
     return json({ ok: true }, { status: 201 });
   }
 
   if (path === '/api/me' && method === 'GET') {
-    const user = await auth.getUser(request);
+    const user = await currentUser(auth, request);
     if (!user) return unauthorized();
     return json({ user: await profileFor(env, user) });
   }
 
   if (path === '/api/me' && method === 'PATCH') {
     if (!isSameOriginRequest(request, env.APP_ORIGIN)) return json({ error: 'Cross-origin request refused' }, { status: 403 });
-    const user = await auth.getUser(request);
+    const user = await currentUser(auth, request);
     if (!user) return unauthorized();
 
     const body = await readJson(request);
@@ -105,7 +97,7 @@ async function handleApi(request, env, auth, url) {
   }
 
   if (path === '/api/me/listings' && method === 'GET') {
-    const user = await auth.getUser(request);
+    const user = await currentUser(auth, request);
     if (!user) return unauthorized();
 
     return json({
@@ -115,13 +107,29 @@ async function handleApi(request, env, auth, url) {
   }
 
   if (path === '/api/me/enquiries' && method === 'GET') {
-    const user = await auth.getUser(request);
+    const user = await currentUser(auth, request);
     if (!user) return unauthorized();
 
     return json({ enquiries: await listEnquiriesForOwner(env, user.sub) });
   }
 
   return notFound();
+}
+
+/**
+ * Reads the Better Auth session from the request cookie and returns the shape
+ * the rest of the API expects (`sub` is the account id).
+ */
+async function currentUser(auth, request) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user) return null;
+
+  return {
+    sub: session.user.id,
+    email: session.user.email ?? null,
+    name: session.user.name ?? null,
+    picture: session.user.image ?? null,
+  };
 }
 
 /** Creates the account row on first sight and returns the stored profile. */
@@ -147,9 +155,3 @@ async function profileFor(env, user) {
     picture: user.picture ?? null,
   };
 }
-
-export default {
-  fetch(request, env) {
-    return getApp(env)(request, env);
-  },
-};

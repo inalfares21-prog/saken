@@ -8,10 +8,9 @@ export default defineConfig({
   server: {
     port: 5183,
     strictPort: true,
-    // The Worker owns /api and /auth; Vite serves the SPA during development.
+    // The Worker owns /api (including /api/auth); Vite serves the SPA.
     proxy: {
       '/api': api,
-      '/auth': api,
     },
   },
 });

@@ -30,3 +30,18 @@ export async function readJson(request) {
     return null;
   }
 }
+
+/**
+ * CSRF guard for state-changing requests: the browser sends Origin on every
+ * cross-site POST, so a mismatch (or a missing Origin) means the request did
+ * not come from the site itself.
+ */
+export function isSameOriginRequest(request, appOrigin) {
+  const origin = request.headers.get('Origin');
+  if (!origin) return false;
+  try {
+    return new URL(origin).origin === new URL(appOrigin).origin;
+  } catch {
+    return false;
+  }
+}

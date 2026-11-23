@@ -3,6 +3,9 @@
   "name": "saken",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-01",
+  // Better Auth uses node:crypto and AsyncLocalStorage, which need the flag
+  // before compatibility date 2026-08-04.
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -16,9 +19,13 @@
       "database_id": "a5e1c156-60e7-4666-87ba-2c28df9bfed5"
     }
   ],
+  // APP_ORIGIN is the public origin of the site. Locally it is the Vite server;
+  // set it to the deployed origin (https://saken.<subdomain>.workers.dev) before
+  // the first deploy.
+  //
+  // BETTER_AUTH_SECRET is deliberately absent here: it is a secret, so it lives
+  // in .dev.vars for development and in `wrangler secret put` in Cloudflare.
   "vars": {
-    "FREEBUFF_CLIENT_ID": "315076cd-6bff-4e31-9286-a5a4e8ce45b4",
-    "FREEBUFF_ISSUER": "https://freebuff.com/oidc",
     "APP_ORIGIN": "http://localhost:5183"
   }
 }

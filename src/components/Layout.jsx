@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { api } from '../lib/api.js';
 import Footer from './Footer.jsx';
 import { CloseIcon, KeyIcon, LogOutIcon, MenuIcon, PlusIcon, UserIcon } from './Icons.jsx';
 
@@ -12,11 +13,12 @@ const mainLinks = [
 ];
 
 export default function Layout() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     setMenuOpen(false);
@@ -32,6 +34,16 @@ export default function Layout() {
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, []);
+
+  async function handleSignOut() {
+    setAccountOpen(false);
+    try {
+      await api.signOut();
+    } finally {
+      await refresh();
+      navigate('/', { replace: true });
+    }
+  }
 
   const initials = user
     ? user.name
@@ -98,14 +110,11 @@ export default function Layout() {
                       <PlusIcon width={17} height={17} />
                       Add a listing
                     </Link>
-                    {/* Sign-out has to be a POST to the Worker, never a link. */}
-                    <form method="post" action="/auth/freebuff/signout">
-                      <input type="hidden" name="returnTo" value="/" />
-                      <button type="submit" role="menuitem">
-                        <LogOutIcon width={17} height={17} />
-                        Sign out
-                      </button>
-                    </form>
+                    {/* Sign-out clears the session cookie server-side, never a plain link. */}
+                    <button type="button" role="menuitem" onClick={handleSignOut}>
+                      <LogOutIcon width={17} height={17} />
+                      Sign out
+                    </button>
                   </div>
                 )}
               </div>

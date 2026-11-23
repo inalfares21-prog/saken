@@ -4,7 +4,7 @@ import { api } from '../lib/api.js';
 const AuthContext = createContext(null);
 
 /**
- * Session state comes from the Worker: `/api/me` reads the Freebuff session
+ * Session state comes from the Worker: `/api/me` reads the Better Auth session
  * cookie and returns the profile row (id, role, name, email). Nothing is kept
  * in localStorage, and the role is stored server-side.
  */

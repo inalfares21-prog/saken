@@ -2,6 +2,9 @@
  * Thin client for the Saken Worker. Every call is same-origin: Vite proxies
  * /api to `wrangler dev` locally, and the deployed Worker serves both the
  * static bundle and the API.
+ *
+ * Sign-in, sign-up and sign-out post to Better Auth's endpoints under
+ * /api/auth; the session lives in an httpOnly cookie, never in localStorage.
  */
 
 export class ApiError extends Error {
@@ -34,7 +37,7 @@ async function request(path, { method = 'GET', body, signal } = {}) {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     throw new ApiError(
-      data?.error || `Request failed (${response.status}).`,
+      data?.error || data?.message || `Request failed (${response.status}).`,
       response.status,
       data?.errors ?? {},
     );
@@ -52,12 +55,6 @@ function query(params = {}) {
   });
   const text = search.toString();
   return text ? `?${text}` : '';
-}
-
-/** Sign-in starts on the Worker, which owns the OIDC dance and the cookie. */
-export function signInUrl(returnTo) {
-  const target = returnTo || `${window.location.pathname}${window.location.search}`;
-  return `/auth/freebuff/signin?returnTo=${encodeURIComponent(target)}`;
 }
 
 export const api = {
@@ -78,6 +75,25 @@ export const api = {
       if (error instanceof ApiError && error.status === 401) return null;
       throw error;
     }
+  },
+
+  /** Creates the account and opens a session in one step. */
+  signUp({ name, email, password }) {
+    return request('/api/auth/sign-up/email', {
+      method: 'POST',
+      body: { name, email, password },
+    });
+  },
+
+  signIn({ email, password }) {
+    return request('/api/auth/sign-in/email', {
+      method: 'POST',
+      body: { email, password },
+    });
+  },
+
+  signOut() {
+    return request('/api/auth/sign-out', { method: 'POST', body: {} });
   },
 
   setRole(role) {

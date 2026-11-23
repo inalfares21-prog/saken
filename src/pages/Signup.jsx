@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { signInUrl } from '../lib/api.js';
+import { api } from '../lib/api.js';
 import { CheckIcon, KeyIcon, ShieldIcon } from '../components/Icons.jsx';
 
 const roles = [
@@ -18,13 +18,49 @@ const roles = [
 ];
 
 export default function Signup() {
-  const { user, loading, chooseRole } = useAuth();
+  const { user, loading, chooseRole, refresh } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  // The role picked before sign-in comes back on the URL after the redirect.
   const [role, setRole] = useState(params.get('role') === 'owner' ? 'owner' : 'tenant');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [saving, setSaving] = useState(false);
+
+  async function handleSignUp(event) {
+    event.preventDefault();
+    setError('');
+    setFieldErrors({});
+
+    const next = {};
+    if (!name.trim()) next.name = 'Enter the name tenants and guests will see.';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) next.email = 'Enter a valid email address.';
+    if (password.length < 8) next.password = 'Use at least 8 characters.';
+    if (Object.keys(next).length) {
+      setFieldErrors(next);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.signUp({ name: name.trim(), email: email.trim(), password });
+      await refresh();
+      const profile = await chooseRole(role);
+      navigate(profile.role === 'owner' ? '/owner/dashboard' : '/rentals', { replace: true });
+    } catch (requestError) {
+      if (requestError.status === 422 || /exist/i.test(requestError.message)) {
+        setError('An account already uses that email. Try logging in instead.');
+      } else if (Object.keys(requestError.errors ?? {}).length) {
+        setFieldErrors(requestError.errors);
+      } else {
+        setError(requestError.message);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleContinue() {
     setSaving(true);
@@ -70,7 +106,7 @@ export default function Signup() {
 
         <p style={{ fontSize: '0.8rem' }}>
           <ShieldIcon width={14} height={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />
-          Accounts are handled by Freebuff — Saken never sees your password.
+          Your account is created directly on Saken, with a password only you know.
         </p>
       </aside>
 
@@ -138,6 +174,13 @@ export default function Signup() {
               <h1>Create your account</h1>
               <p>Two minutes, no fees. You can switch between renting and listing later.</p>
 
+              {error && (
+                <div className="inline-alert inline-alert--error" role="alert" style={{ marginBottom: 18 }}>
+                  <ShieldIcon />
+                  <span>{error}</span>
+                </div>
+              )}
+
               <div className="role-choice">
                 {roles.map((option) => (
                   <label
@@ -157,12 +200,76 @@ export default function Signup() {
                 ))}
               </div>
 
-              <a
-                href={signInUrl(`/signup?role=${role}`)}
-                className="btn btn--primary btn--block btn--lg"
-              >
-                Continue with Freebuff
-              </a>
+              <form onSubmit={handleSignUp} noValidate>
+                <div className="field">
+                  <label htmlFor="name">Full name</label>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    autoComplete="name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    aria-invalid={Boolean(fieldErrors.name)}
+                    required
+                  />
+                  {fieldErrors.name && (
+                    <span className="field__error" role="alert">
+                      {fieldErrors.name}
+                    </span>
+                  )}
+                </div>
+
+                <div className="field">
+                  <label htmlFor="email">Email</label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    required
+                  />
+                  {fieldErrors.email && (
+                    <span className="field__error" role="alert">
+                      {fieldErrors.email}
+                    </span>
+                  )}
+                </div>
+
+                <div className="field">
+                  <label htmlFor="password">Password</label>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    aria-invalid={Boolean(fieldErrors.password)}
+                    minLength={8}
+                    required
+                  />
+                  {fieldErrors.password ? (
+                    <span className="field__error" role="alert">
+                      {fieldErrors.password}
+                    </span>
+                  ) : (
+                    <span className="field__hint">At least 8 characters.</span>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn--primary btn--block btn--lg"
+                  style={{ marginTop: 20 }}
+                  disabled={saving}
+                >
+                  {saving ? 'Creating your account…' : 'Create my account'}
+                </button>
+              </form>
 
               <p className="auth-foot">
                 Already have an account? <Link to="/login">Log in</Link>
