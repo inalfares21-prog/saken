@@ -37,7 +37,7 @@ const faqs = [
   {
     question: 'Is Saken live yet?',
     answer:
-      'Not yet — this is a working prototype. Accounts, listings and enquiries are stored on a real backend, but the starting listings are sample data, photo uploads are not open, and listings are checked by hand before going public.',
+      'Not yet — this is a working prototype. Accounts, listings, photos and enquiries are stored on a real backend, but the starting listings are sample data and listings are checked by hand before going public.',
   },
 ];
 

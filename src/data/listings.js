@@ -182,7 +182,7 @@ export const listings = [
     available: 'Available now',
     rating: 5,
     reviews: 12,
-    image: '/images/hero-algiers.jpg',
+    image: '/images/tipaza-villa.jpg',
     featured: true,
     badge: 'Premium',
     amenities: [

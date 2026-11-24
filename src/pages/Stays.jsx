@@ -4,7 +4,10 @@ import ListingCard from '../components/ListingCard.jsx';
 import { cityOptions } from '../data/cities.js';
 import { sortListings } from '../lib/sortListings.js';
 import { useListings } from '../lib/useListings.js';
+import { formatDZD } from '../lib/format.js';
 import { CheckIcon, SunIcon } from '../components/Icons.jsx';
+
+const MAX_BUDGET = 50000;
 
 const categories = [
   { value: 'all', label: 'All stays' },
@@ -42,19 +45,22 @@ export default function Stays() {
   const { listings, loading, error } = useListings({ kind: 'stay', limit: 100 });
   const [category, setCategory] = useState(params.get('kind') || 'all');
   const [city, setCity] = useState(params.get('city') || 'All cities');
-  const [budget, setBudget] = useState(params.get('max') || 'any');
+  const [minPrice, setMinPrice] = useState(0);
+  const [maxPrice, setMaxPrice] = useState(
+    params.get('max') ? Number(params.get('max')) : MAX_BUDGET,
+  );
   const [sort, setSort] = useState('recommended');
 
   const results = useMemo(() => {
     const filtered = listings.filter((listing) => {
       if (category !== 'all' && listing.kind !== category) return false;
       if (city !== 'All cities' && listing.city !== city) return false;
-      if (budget !== 'any' && listing.price > Number(budget)) return false;
+      if (listing.price < minPrice || listing.price > maxPrice) return false;
       return true;
     });
 
     return sortListings(filtered, sort);
-  }, [listings, category, city, budget, sort]);
+  }, [listings, category, city, minPrice, maxPrice, sort]);
 
   return (
     <>
@@ -100,17 +106,55 @@ export default function Stays() {
                 </option>
               ))}
             </select>
-            <select
+            <div
               className="select-mini"
-              value={budget}
-              onChange={(event) => setBudget(event.target.value)}
-              aria-label="Filter stays by nightly budget"
+              style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, padding: '6px 10px', minWidth: 220 }}
             >
-              <option value="any">Any budget</option>
-              <option value="6000">Up to 6 000 DA / night</option>
-              <option value="12000">Up to 12 000 DA / night</option>
-              <option value="20000">Up to 20 000 DA / night</option>
-            </select>
+              <span style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                {minPrice > 0 ? formatDZD(minPrice) : '0 DA'} –{' '}
+                {maxPrice >= MAX_BUDGET ? 'Any' : formatDZD(maxPrice)} / night
+              </span>
+              <div style={{ position: 'relative', height: 20 }}>
+                <input
+                  type="range"
+                  min={0}
+                  max={MAX_BUDGET}
+                  step={1000}
+                  value={minPrice}
+                  onChange={(event) =>
+                    setMinPrice(Math.min(Number(event.target.value), maxPrice))
+                  }
+                  aria-label="Minimum nightly budget"
+                  style={{
+                    position: 'absolute',
+                    width: '100%',
+                    pointerEvents: 'none',
+                    background: 'transparent',
+                  }}
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={MAX_BUDGET}
+                  step={1000}
+                  value={maxPrice}
+                  onChange={(event) =>
+                    setMaxPrice(Math.max(Number(event.target.value), minPrice))
+                  }
+                  aria-label="Maximum nightly budget"
+                  style={{
+                    position: 'absolute',
+                    width: '100%',
+                    pointerEvents: 'none',
+                    background: 'transparent',
+                  }}
+                />
+              </div>
+              <style>{`
+                .select-mini input[type="range"]::-webkit-slider-thumb { pointer-events: auto; }
+                .select-mini input[type="range"]::-moz-range-thumb { pointer-events: auto; }
+              `}</style>
+            </div>
             <select
               className="select-mini"
               value={sort}
@@ -160,7 +204,8 @@ export default function Stays() {
               onClick={() => {
                 setCity('All cities');
                 setCategory('all');
-                setBudget('any');
+                setMinPrice(0);
+                setMaxPrice(MAX_BUDGET);
               }}
             >
               Show all stays

@@ -15,6 +15,10 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
+  const initialAdmin =
+    new URLSearchParams(location.search).get('admin') === '1' ||
+    location.state?.from === '/admin';
+  const [adminMode, setAdminMode] = useState(initialAdmin);
 
   if (loading) {
     return (
@@ -39,7 +43,14 @@ export default function Login() {
     try {
       await api.signIn({ email: email.trim(), password });
       await refresh();
-      navigate(from, { replace: true });
+      const profile = await api.me();
+      if (adminMode && profile?.role !== 'admin') {
+        await api.signOut();
+        await refresh();
+        setError('That account is not an administrator.');
+        return;
+      }
+      navigate(adminMode ? '/admin' : from, { replace: true });
     } catch (requestError) {
       setError(
         requestError.status === 401
@@ -99,8 +110,12 @@ export default function Login() {
             </span>
           </Link>
 
-          <h1>Log in</h1>
-          <p>Sign in with the email and password you used to create your Saken account.</p>
+          <h1>{adminMode ? 'Administrator login' : 'Log in'}</h1>
+          <p>
+            {adminMode
+              ? 'Sign in with an administrator account to review and publish listings.'
+              : 'Sign in with the email and password you used to create your Saken account.'}
+          </p>
 
           {error && (
             <div className="inline-alert inline-alert--error" role="alert" style={{ marginBottom: 18 }}>
@@ -147,7 +162,22 @@ export default function Login() {
           </form>
 
           <p className="auth-foot">
-            New to Saken? <Link to="/signup">Create an account</Link>
+            {adminMode ? (
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => {
+                  setAdminMode(false);
+                  setError('');
+                }}
+              >
+                ← Back to standard login
+              </button>
+            ) : (
+              <>
+                New to Saken? <Link to="/signup">Create an account</Link>
+              </>
+            )}
           </p>
           <p className="auth-foot" style={{ marginTop: 8 }}>
             <Link to="/">← Continue browsing</Link>

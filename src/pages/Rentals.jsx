@@ -5,14 +5,9 @@ import { SlidersIcon } from '../components/Icons.jsx';
 import { cityOptions, propertyTypes } from '../data/cities.js';
 import { sortListings } from '../lib/sortListings.js';
 import { useListings } from '../lib/useListings.js';
+import { formatDZD } from '../lib/format.js';
 
-const budgetLabels = {
-  any: 'Any budget',
-  60000: 'Up to 60 000 DA',
-  120000: 'Up to 120 000 DA',
-  200000: 'Up to 200 000 DA',
-  '200000-plus': '200 000 DA and above',
-};
+const MAX_BUDGET = 500000;
 
 const sortOptions = [
   { value: 'recommended', label: 'Recommended' },
@@ -26,7 +21,10 @@ export default function Rentals() {
   const { listings, loading, error } = useListings({ kind: 'rental', limit: 100 });
   const [city, setCity] = useState(params.get('city') || 'All cities');
   const [type, setType] = useState(params.get('type') || 'any');
-  const [budget, setBudget] = useState(params.get('max') || 'any');
+  const [minPrice, setMinPrice] = useState(0);
+  const [maxPrice, setMaxPrice] = useState(
+    params.get('max') ? Number(params.get('max')) : MAX_BUDGET,
+  );
   const [furnishedOnly, setFurnishedOnly] = useState(false);
   const [sort, setSort] = useState('recommended');
   // open by default on wide screens; on phones the results come first and filters start collapsed
@@ -38,22 +36,22 @@ export default function Rentals() {
     const filtered = listings.filter((listing) => {
       if (city !== 'All cities' && listing.city !== city) return false;
       if (type !== 'any' && listing.type !== type) return false;
-      if (budget === '200000-plus' && listing.price < 200000) return false;
-      if (budget !== 'any' && budget !== '200000-plus' && listing.price > Number(budget)) return false;
+      if (listing.price < minPrice || listing.price > maxPrice) return false;
       if (furnishedOnly && !listing.furnished) return false;
       return true;
     });
 
     return sortListings(filtered, sort);
-  }, [listings, city, type, budget, furnishedOnly, sort]);
+  }, [listings, city, type, minPrice, maxPrice, furnishedOnly, sort]);
 
   const activeFilters =
-    (city !== 'All cities' ? 1 : 0) + (type !== 'any' ? 1 : 0) + (budget !== 'any' ? 1 : 0) + (furnishedOnly ? 1 : 0);
+    (city !== 'All cities' ? 1 : 0) + (type !== 'any' ? 1 : 0) + (minPrice > 0 || maxPrice !== MAX_BUDGET ? 1 : 0) + (furnishedOnly ? 1 : 0);
 
   function resetFilters() {
     setCity('All cities');
     setType('any');
-    setBudget('any');
+    setMinPrice(0);
+    setMaxPrice(MAX_BUDGET);
     setFurnishedOnly(false);
   }
 
@@ -135,18 +133,53 @@ export default function Rentals() {
             </div>
 
             <div className="field">
-              <label htmlFor="filter-budget">Monthly budget</label>
-              <select
-                id="filter-budget"
-                value={budget}
-                onChange={(event) => setBudget(event.target.value)}
-              >
-                {Object.entries(budgetLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <label htmlFor="filter-budget-min">
+                Monthly budget:{' '}
+                {minPrice > 0 ? formatDZD(minPrice) : '0 DA'} –{' '}
+                {maxPrice >= MAX_BUDGET ? 'Any' : formatDZD(maxPrice)}
+              </label>
+              <div style={{ position: 'relative', height: 24 }}>
+                <input
+                  id="filter-budget-min"
+                  type="range"
+                  min={0}
+                  max={MAX_BUDGET}
+                  step={10000}
+                  value={minPrice}
+                  onChange={(event) =>
+                    setMinPrice(Math.min(Number(event.target.value), maxPrice))
+                  }
+                  aria-label="Minimum monthly budget"
+                  style={{
+                    position: 'absolute',
+                    width: '100%',
+                    pointerEvents: 'none',
+                    background: 'transparent',
+                  }}
+                />
+                <input
+                  id="filter-budget-max"
+                  type="range"
+                  min={0}
+                  max={MAX_BUDGET}
+                  step={10000}
+                  value={maxPrice}
+                  onChange={(event) =>
+                    setMaxPrice(Math.max(Number(event.target.value), minPrice))
+                  }
+                  aria-label="Maximum monthly budget"
+                  style={{
+                    position: 'absolute',
+                    width: '100%',
+                    pointerEvents: 'none',
+                    background: 'transparent',
+                  }}
+                />
+              </div>
+              <style>{`
+                .field input[type="range"]::-webkit-slider-thumb { pointer-events: auto; }
+                .field input[type="range"]::-moz-range-thumb { pointer-events: auto; }
+              `}</style>
             </div>
 
             <div className="field">

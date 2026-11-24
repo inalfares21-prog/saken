@@ -108,8 +108,43 @@ export const api = {
     return request('/api/me/enquiries').then((data) => data.enquiries ?? []);
   },
 
+  /** Uploads one prepared JPEG blob and returns its permanent URL. */
+  async uploadImage(blob) {
+    let response;
+    try {
+      response = await fetch('/api/images', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': blob.type || 'image/jpeg' },
+        body: blob,
+      });
+    } catch {
+      throw new ApiError('Could not reach the Saken server.', 0);
+    }
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new ApiError(data?.error || 'The photo could not be uploaded.', response.status);
+    }
+    return data.url;
+  },
+
   createListing(payload) {
     return request('/api/listings', { method: 'POST', body: payload }).then((data) => data.listing);
+  },
+
+  adminListings(status = 'review') {
+    return request(`/api/admin/listings?status=${encodeURIComponent(status)}`).then(
+      (data) => data.listings ?? [],
+    );
+  },
+
+  approveListing(id) {
+    return request(`/api/admin/listings/${encodeURIComponent(id)}/approve`, { method: 'POST' });
+  },
+
+  rejectListing(id) {
+    return request(`/api/admin/listings/${encodeURIComponent(id)}/reject`, { method: 'POST' });
   },
 
   sendEnquiry(payload) {

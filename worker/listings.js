@@ -124,6 +124,24 @@ export async function listOwnListings(env, userId) {
   return results.map((row) => ({ ...toListing(row), contact: contactOf(row) }));
 }
 
+/** All listings in a given status, newest first — used by the admin review queue. */
+export async function listListingsByStatus(env, status, limit = 100) {
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM listings WHERE status = ? ORDER BY created_at DESC LIMIT ?',
+  )
+    .bind(status, limit)
+    .all();
+  return results.map((row) => ({ ...toListing(row), contact: contactOf(row) }));
+}
+
+/** Approve or reject a listing by setting its status. */
+export async function setListingStatus(env, id, status) {
+  const result = await env.DB.prepare('UPDATE listings SET status = ? WHERE id = ?')
+    .bind(status, id)
+    .run();
+  return (result.meta?.changes ?? 0) > 0;
+}
+
 function contactOf(row) {
   return { name: row.contact_name, phone: row.contact_phone, email: row.contact_email };
 }
@@ -192,9 +210,12 @@ export function validateListing(body) {
 
   const available = str(body.available).slice(0, 60) || (kind === 'rental' ? 'Available now' : 'Rooms available');
   const badge = str(body.badge).slice(0, 40) || (kind === 'rental' ? 'New listing' : 'New stay');
+  // Either a bundled sample photo or a photo the account uploaded itself.
   const image = str(body.image);
-  if (image && !/^\/images\/[a-z0-9-]+\.(jpg|jpeg|png|webp)$/i.test(image)) {
-    errors.image = 'Choose one of the sample photos.';
+  const SAMPLE_IMAGE = /^\/images\/[a-z0-9-]+\.(jpg|jpeg|png|webp)$/i;
+  const UPLOADED_IMAGE = /^\/api\/images\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (image && !SAMPLE_IMAGE.test(image) && !UPLOADED_IMAGE.test(image)) {
+    errors.image = 'Upload a JPEG, PNG or WebP photo, or pick a sample one.';
   }
 
   const amenities = Array.isArray(body.amenities)

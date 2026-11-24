@@ -67,6 +67,19 @@ export const schemaStatements = [
 
   `CREATE INDEX IF NOT EXISTS enquiries_listing ON enquiries (listing_id)`,
 
+  // Listing photos uploaded by owners. The bytes sit in the row because the
+  // site is small; R2 is the upgrade path when that stops being true.
+  `CREATE TABLE IF NOT EXISTS uploads (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    bytes BLOB NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS uploads_owner ON uploads (owner_id, created_at)`,
+
   `CREATE TABLE IF NOT EXISTS favorites (
     user_id TEXT NOT NULL,
     listing_id TEXT NOT NULL,

@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { cities } from '../data/cities.js';
 import { api } from '../lib/api.js';
+import { ImageError, prepareImage } from '../lib/images.js';
 import { formatShortDate } from '../lib/format.js';
 import { CheckIcon, ShieldIcon, SunIcon } from '../components/Icons.jsx';
 
@@ -83,6 +84,57 @@ export default function ListProperty() {
   // has nothing to do with the visitor's account, so it must not offer them.
   const [error, setError] = useState(null);
   const [errors, setErrors] = useState({});
+  // The prepared JPEG and its local preview. Uploaded on submit, not on pick,
+  // so an abandoned form leaves nothing behind on the server.
+  const [photo, setPhoto] = useState(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const objectUrl = useRef(null);
+
+  useEffect(() => () => {
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+  }, []);
+
+  function clearPhoto() {
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    objectUrl.current = null;
+    setPhoto(null);
+    setErrors((previous) => {
+      const next = { ...previous };
+      delete next.image;
+      return next;
+    });
+  }
+
+  async function handlePhotoChange(event) {
+    const file = event.target.files?.[0];
+    // Clearing the input lets the same file be chosen again after a refusal.
+    event.target.value = '';
+    if (!file) return;
+
+    setPhotoBusy(true);
+    try {
+      const prepared = await prepareImage(file);
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+      objectUrl.current = prepared.previewUrl;
+      setPhoto(prepared);
+      setErrors((previous) => {
+        const next = { ...previous };
+        delete next.image;
+        return next;
+      });
+    } catch (photoError) {
+      clearPhoto();
+      setErrors((previous) => ({
+        ...previous,
+        image:
+          photoError instanceof ImageError
+            ? photoError.message
+            : 'That photo could not be prepared. Try another one.',
+      }));
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   function validateFields() {
     const form = formRef.current;
@@ -135,6 +187,7 @@ export default function ListProperty() {
 
     setSending(true);
     try {
+      const uploadedImage = photo ? await api.uploadImage(photo.blob) : '';
       await api.createListing({
         kind: purpose,
         title: get('title'),
@@ -148,7 +201,7 @@ export default function ListProperty() {
         guests: get('guests'),
         furnished: get('furnished') === 'furnished',
         available: available ? `Available from ${formatShortDate(available)}` : '',
-        image: get('image'),
+        image: uploadedImage || get('image'),
         amenities,
         contact: {
           name: get('contact-name'),
@@ -519,17 +572,66 @@ export default function ListProperty() {
               </div>
               <div className="form-grid">
                 <div className="field field--full">
-                  <label htmlFor="image">Main photo</label>
-                  <select id="image" name="image" defaultValue={photoOptions[0].value}>
-                    {photoOptions.map((photo) => (
-                      <option key={photo.value} value={photo.value}>
-                        {photo.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="field__hint">
-                    Photo uploads are not open yet, so listings use one of the sample photos.
-                  </span>
+                  <label htmlFor="image-file">Main photo</label>
+                  <div className="photo-upload">
+                    <div className="photo-upload__frame">
+                      {photo ? (
+                        <img src={photo.previewUrl} alt="Your listing photo" />
+                      ) : (
+                        <span>No photo yet</span>
+                      )}
+                    </div>
+                    <div className="photo-upload__body">
+                      <input
+                        id="image-file"
+                        name="photo-file"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handlePhotoChange}
+                        disabled={photoBusy}
+                        aria-describedby="image-hint"
+                      />
+                      <span className="field__hint" id="image-hint">
+                        JPEG, PNG or WebP up to 25 MB. The photo is resized in your browser, then
+                        checked again on the server — other file types are refused.
+                      </span>
+
+                      {photo && (
+                        <span className="field__hint">
+                          Ready to upload · {Math.round(photo.blob.size / 1024)} KB ·{' '}
+                          {photo.width}×{photo.height}
+                        </span>
+                      )}
+
+                      {photo && (
+                        <button type="button" className="btn btn--ghost btn--sm" onClick={clearPhoto}>
+                          Remove photo
+                        </button>
+                      )}
+
+                      {!photo && (
+                        <>
+                          <label htmlFor="image" className="photo-upload__label">
+                            Or start from a sample photo
+                          </label>
+                          <select id="image" name="image" defaultValue="">
+                            <option value="">No photo — use the section default</option>
+                            {photoOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {photoBusy && <span className="field__hint">Preparing the photo…</span>}
+                  {errors.image && (
+                    <span className="field__error" role="alert">
+                      {errors.image}
+                    </span>
+                  )}
                 </div>
                 <div className="field">
                   <label htmlFor="contact-name">Your name</label>
@@ -590,7 +692,11 @@ export default function ListProperty() {
                 By publishing you confirm the property is yours to rent and the details are
                 accurate.
               </p>
-              <button type="submit" className="btn btn--primary btn--lg" disabled={sending}>
+              <button
+                type="submit"
+                className="btn btn--primary btn--lg"
+                disabled={sending || photoBusy}
+              >
                 {sending ? 'Saving…' : 'Save & submit for review'}
               </button>
             </div>

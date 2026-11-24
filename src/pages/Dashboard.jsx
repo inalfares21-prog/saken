@@ -163,8 +163,8 @@ function DashboardContent() {
           <div className="inline-alert" style={{ marginTop: 18 }}>
             <StarIcon />
             <span>
-              Listings are reviewed before going public. Photo uploads are not open yet, so each
-              listing uses one of the sample photos.
+              Listings are reviewed before going public. You can upload your own main photo when
+              you publish — JPEG, PNG or WebP.
             </span>
           </div>
         </div>

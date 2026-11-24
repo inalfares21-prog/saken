@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import Footer from './Footer.jsx';
-import { CloseIcon, KeyIcon, LogOutIcon, MenuIcon, PlusIcon, UserIcon } from './Icons.jsx';
+import { CloseIcon, KeyIcon, LogOutIcon, MenuIcon, PlusIcon, ShieldIcon, UserIcon } from './Icons.jsx';
 
 const mainLinks = [
   { to: '/rentals', label: 'Rentals' },
@@ -106,6 +106,12 @@ export default function Layout() {
                       <UserIcon width={17} height={17} />
                       Owner dashboard
                     </Link>
+                    {user.role === 'admin' && (
+                      <Link to="/admin" role="menuitem">
+                        <ShieldIcon width={17} height={17} />
+                        Admin review
+                      </Link>
+                    )}
                     <Link to="/list-property" role="menuitem">
                       <PlusIcon width={17} height={17} />
                       Add a listing

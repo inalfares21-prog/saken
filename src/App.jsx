@@ -6,6 +6,7 @@ import Rentals from './pages/Rentals.jsx';
 import Stays from './pages/Stays.jsx';
 import ListingDetail from './pages/ListingDetail.jsx';
 import ListProperty from './pages/ListProperty.jsx';
+import Admin from './pages/Admin.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/listings/:id" element={<ListingDetail />} />
           <Route path="/list-property" element={<ListProperty />} />
           <Route path="/owner/dashboard" element={<Dashboard />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="*" element={<NotFound />} />

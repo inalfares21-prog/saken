@@ -5,11 +5,14 @@ import {
   createListing,
   findListing,
   listListings,
+  listListingsByStatus,
   listOwnListings,
+  setListingStatus,
   similarListings,
   validateListing,
 } from './listings.js';
 import { badRequest, isSameOriginRequest, json, notFound, readJson, unauthorized } from './http.js';
+import { ownsImage, saveImage, serveImage } from './uploads.js';
 
 export default {
   async fetch(request, env) {
@@ -38,6 +41,23 @@ async function handleApi(request, env, auth, url) {
     return json({ ok: true });
   }
 
+  // Stored listing photos. Public, but the id is a random UUID and the response
+  // is always served with the sniffed image type and a sandboxing CSP.
+  if (path.startsWith('/api/images/') && method === 'GET') {
+    const image = await serveImage(env, path.slice('/api/images/'.length));
+    return image ?? notFound();
+  }
+
+  if (path === '/api/images' && method === 'POST') {
+    if (!isSameOriginRequest(request, env.APP_ORIGIN)) return json({ error: 'Cross-origin request refused' }, { status: 403 });
+    const user = await currentUser(auth, request);
+    if (!user) return unauthorized();
+
+    const result = await saveImage(env, request, user.sub);
+    if (!result.ok) return json({ error: result.error }, { status: result.status });
+    return json(result.image, { status: 201 });
+  }
+
   if (path === '/api/listings' && method === 'GET') {
     return json({ listings: await listListings(env, url) });
   }
@@ -58,6 +78,10 @@ async function handleApi(request, env, auth, url) {
 
     const result = validateListing(body);
     if (!result.ok) return badRequest(result.errors);
+
+    if (!(await ownsImage(env, user.sub, result.values.image))) {
+      return badRequest({ image: 'Upload that photo again — it is not attached to your account.' });
+    }
 
     const profile = await profileFor(env, user);
     const listing = await createListing(env, user.sub, profile, result.values);
@@ -111,6 +135,30 @@ async function handleApi(request, env, auth, url) {
     if (!user) return unauthorized();
 
     return json({ enquiries: await listEnquiriesForOwner(env, user.sub) });
+  }
+
+  if (path === '/api/admin/listings' && method === 'GET') {
+    const user = await currentUser(auth, request);
+    if (!user) return unauthorized();
+    const profile = await profileFor(env, user);
+    if (profile.role !== 'admin') return json({ error: 'Administrator access required' }, { status: 403 });
+
+    const status = url.searchParams.get('status') || 'review';
+    return json({ listings: await listListingsByStatus(env, status) });
+  }
+
+  const adminAction = path.match(/^\/api\/admin\/listings\/([^/]+)\/(approve|reject)$/);
+  if (adminAction && method === 'POST') {
+    if (!isSameOriginRequest(request, env.APP_ORIGIN)) return json({ error: 'Cross-origin request refused' }, { status: 403 });
+    const user = await currentUser(auth, request);
+    if (!user) return unauthorized();
+    const profile = await profileFor(env, user);
+    if (profile.role !== 'admin') return json({ error: 'Administrator access required' }, { status: 403 });
+
+    const [, id, action] = adminAction;
+    const ok = await setListingStatus(env, id, action === 'approve' ? 'published' : 'rejected');
+    if (!ok) return notFound();
+    return json({ ok: true });
   }
 
   return notFound();
